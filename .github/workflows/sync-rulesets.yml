@@ -1,0 +1,42 @@
+name: Sync rulesets to Gitea
+
+on:
+  schedule:
+    # 每周五凌晨 03:00（北京时间，UTC 周四 19:00）
+    - cron: '0 19 * * 4'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download rulesets and push to Gitea
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          while read -r src dst; do
+            [ -z "$src" ] && continue
+            src="${src%$'\r'}"; dst="${dst%$'\r'}"
+            mkdir -p "work/$(dirname "$dst")"
+            if ! curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 12 --max-time 40 "$src" -o "work/$dst"; then
+              curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 12 --max-time 40 "https://gh-proxy.com/$src" -o "work/$dst"
+            fi
+            echo "ok $dst"
+          done < scripts/rulesets-source.txt
+
+          cd work
+          git init -b main -q
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to rulesets; skip push."
+            exit 0
+          fi
+          git commit -q -m "sync third-party rulesets $(date -u +%F)"
+          git remote add gitea "https://liang:${GITEA_TOKEN}@git.jrevea.cn:88/liang/rulesets.git"
+          git -c http.sslVerify=false push -f gitea main
