@@ -14,7 +14,7 @@ jobs:
 
       - name: Download rulesets and push to Gitea
         env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.SYNC_CLASH_TO_GITEA }}
         run: |
           set -euo pipefail
           mkdir -p work
